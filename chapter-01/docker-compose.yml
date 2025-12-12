@@ -1,0 +1,64 @@
+services:
+  # ===========================================
+  # POLLING ARCHITECTURE (The Old Way)
+  # ===========================================
+  
+  barn-service:
+    build: ./barn-service
+    ports:
+      - "8080:8080"
+    networks:
+      - polling-net
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/barn/status"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  firehouse-polling:
+    build: ./firehouse-polling
+    ports:
+      - "8081:8081"
+    environment:
+      - BARN_SERVICE_URL=http://barn-service:8080
+      - POLLING_INTERVAL_MS=10000
+    depends_on:
+      barn-service:
+        condition: service_healthy
+    networks:
+      - polling-net
+
+  # ===========================================
+  # EVENT-DRIVEN ARCHITECTURE (The Right Way)
+  # ===========================================
+  
+  barn-service-events:
+    build: ./barn-service-events
+    ports:
+      - "8082:8082"
+    networks:
+      - events-net
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8082/barn/status"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  firehouse-subscriber:
+    build: ./firehouse-subscriber
+    ports:
+      - "8083:8083"
+    environment:
+      - BARN_SERVICE_URL=http://barn-service-events:8082
+      - FIREHOUSE_CALLBACK_HOST=firehouse-subscriber
+    depends_on:
+      barn-service-events:
+        condition: service_healthy
+    networks:
+      - events-net
+
+networks:
+  polling-net:
+    driver: bridge
+  events-net:
+    driver: bridge
