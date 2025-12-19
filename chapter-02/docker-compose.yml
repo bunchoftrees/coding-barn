@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  auth-server:
+    build: ./auth-server
+    ports:
+      - "8081:8081"
+    networks:
+      - harvest-party
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/oauth/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  shed-service:
+    build: ./shed-service
+    ports:
+      - "8080:8080"
+    networks:
+      - harvest-party
+    depends_on:
+      auth-server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/music/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  harvest-service:
+    build: ./harvest-service
+    ports:
+      - "8082:8082"
+    networks:
+      - harvest-party
+    environment:
+      - AUTH_SERVER_URL=http://auth-server:8081
+      - SHED_SERVICE_URL=http://shed-service:8080
+    depends_on:
+      auth-server:
+        condition: service_healthy
+      shed-service:
+        condition: service_healthy
+
+  party-guest-app:
+    build: ./party-guest-app
+    ports:
+      - "8083:8083"
+    networks:
+      - harvest-party
+    environment:
+      - AUTH_SERVER_URL=http://auth-server:8081
+      - SHED_SERVICE_URL=http://shed-service:8080
+    depends_on:
+      auth-server:
+        condition: service_healthy
+      shed-service:
+        condition: service_healthy
+
+networks:
+  harvest-party:
+    driver: bridge
